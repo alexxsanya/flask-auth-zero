@@ -9,7 +9,7 @@ app = Flask(__name__)
 
 AUTH0_DOMAIN = 'alexxsanya.auth0.com'
 ALGORITHMS = ['HS256']
-API_AUDIENCE = 'udacity'
+API_AUDIENCE = 'https://alexxsanya.dev'
 
 
 class AuthError(Exception):
@@ -103,22 +103,39 @@ def verify_decode_jwt(token):
                 'code': 'invalid_header',
                 'description': 'Unable to find the appropriate key.'
             }, 400)
+def check_permissions(permission, payload):
+    if 'permissions' not in payload:
+                        raise AuthError({
+                            'code': 'invalid_claims',
+                            'description': 'Permissions not included in JWT.'
+                        }, 400)
 
+    if permission not in payload['permissions']:
+        raise AuthError({
+            'code': 'unauthorized',
+            'description': 'Permission not found.'
+        }, 403)
+    return True
 
-def requires_auth(f):
-    @wraps(f)
-    def wrapper(*args, **kwargs):
-        token = get_token_auth_header()
-        try:
-            payload = verify_decode_jwt(token)
-        except:
-            abort(401)
-        return f(payload, *args, **kwargs)
+def requires_auth(permissions='get:images'):
+    def requires_auth_decorator(f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            token = get_token_auth_header()
+            try:
+                payload = verify_decode_jwt(token)
+            except:
+                abort(401)
 
-    return wrapper
+            check_permissions(permissions, payload)
+
+            return f(payload, *args, **kwargs)
+
+        return wrapper
+    return requires_auth_decorator
 
 @app.route('/headers')
-@requires_auth
+@requires_auth('get:images')
 def headers(payload):
     print(payload)
     return 'Access Granted'
